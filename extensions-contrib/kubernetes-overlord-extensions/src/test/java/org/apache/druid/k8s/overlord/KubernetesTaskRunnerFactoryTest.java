@@ -32,6 +32,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Properties;
+
 public class KubernetesTaskRunnerFactoryTest
 {
   private ObjectMapper objectMapper;
@@ -41,6 +43,7 @@ public class KubernetesTaskRunnerFactoryTest
   private TaskLogPusher taskLogPusher;
   private DruidNode druidNode;
   private TaskConfig taskConfig;
+  private Properties properties;
 
   @Before
   public void setup()
@@ -81,6 +84,7 @@ public class KubernetesTaskRunnerFactoryTest
         false,
         ImmutableList.of("/tmp")
     );
+    properties = new Properties();
   }
 
   @Test
@@ -93,7 +97,8 @@ public class KubernetesTaskRunnerFactoryTest
         taskQueueConfig,
         taskLogPusher,
         druidNode,
-        taskConfig
+        taskConfig,
+        properties
     );
 
     KubernetesTaskRunner expectedRunner = factory.build();
@@ -112,7 +117,8 @@ public class KubernetesTaskRunnerFactoryTest
         taskQueueConfig,
         taskLogPusher,
         druidNode,
-        taskConfig
+        taskConfig,
+        properties
     );
 
     KubernetesTaskRunner runner = factory.build();
@@ -131,7 +137,8 @@ public class KubernetesTaskRunnerFactoryTest
         taskQueueConfig,
         taskLogPusher,
         druidNode,
-        taskConfig
+        taskConfig,
+        properties
     );
 
     KubernetesTaskRunner runner = factory.build();
@@ -151,7 +158,8 @@ public class KubernetesTaskRunnerFactoryTest
         taskQueueConfig,
         taskLogPusher,
         druidNode,
-        taskConfig
+        taskConfig,
+        properties
     );
 
     KubernetesTaskRunner runner = factory.build();

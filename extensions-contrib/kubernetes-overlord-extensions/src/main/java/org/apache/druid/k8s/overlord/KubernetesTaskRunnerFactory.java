@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.Inject;
 import io.fabric8.kubernetes.client.Config;
+import org.apache.druid.guice.IndexingServiceModuleHelper;
 import org.apache.druid.guice.annotations.Self;
 import org.apache.druid.guice.annotations.Smile;
 import org.apache.druid.indexing.common.config.TaskConfig;
@@ -30,12 +31,16 @@ import org.apache.druid.indexing.overlord.TaskRunnerFactory;
 import org.apache.druid.indexing.overlord.config.TaskQueueConfig;
 import org.apache.druid.k8s.overlord.common.DruidKubernetesClient;
 import org.apache.druid.k8s.overlord.common.DruidKubernetesPeonClient;
-import org.apache.druid.k8s.overlord.common.K8sTaskAdapter;
 import org.apache.druid.k8s.overlord.common.MultiContainerTaskAdapter;
+import org.apache.druid.k8s.overlord.common.PodTemplateTaskAdapter;
 import org.apache.druid.k8s.overlord.common.SingleContainerTaskAdapter;
+import org.apache.druid.k8s.overlord.common.TaskAdapter;
 import org.apache.druid.server.DruidNode;
 import org.apache.druid.server.log.StartupLoggingConfig;
 import org.apache.druid.tasklogs.TaskLogPusher;
+
+import java.util.Locale;
+import java.util.Properties;
 
 public class KubernetesTaskRunnerFactory implements TaskRunnerFactory<KubernetesTaskRunner>
 {
@@ -47,6 +52,7 @@ public class KubernetesTaskRunnerFactory implements TaskRunnerFactory<Kubernetes
   private final TaskLogPusher taskLogPusher;
   private final DruidNode druidNode;
   private final TaskConfig taskConfig;
+  private final Properties properties;
   private KubernetesTaskRunner runner;
 
 
@@ -58,7 +64,8 @@ public class KubernetesTaskRunnerFactory implements TaskRunnerFactory<Kubernetes
       @JacksonInject TaskQueueConfig taskQueueConfig,
       TaskLogPusher taskLogPusher,
       @Self DruidNode druidNode,
-      TaskConfig taskConfig
+      TaskConfig taskConfig,
+      Properties properties
   )
   {
 
@@ -69,6 +76,7 @@ public class KubernetesTaskRunnerFactory implements TaskRunnerFactory<Kubernetes
     this.taskLogPusher = taskLogPusher;
     this.druidNode = druidNode;
     this.taskConfig = taskConfig;
+    this.properties = properties;
   }
 
   @Override
@@ -84,29 +92,8 @@ public class KubernetesTaskRunnerFactory implements TaskRunnerFactory<Kubernetes
       client = new DruidKubernetesClient();
     }
 
-    K8sTaskAdapter adapter;
-    if (kubernetesTaskRunnerConfig.sidecarSupport) {
-      adapter = new MultiContainerTaskAdapter(
-          client,
-          kubernetesTaskRunnerConfig,
-          taskConfig,
-          startupLoggingConfig,
-          druidNode,
-          smileMapper
-      );
-    } else {
-      adapter = new SingleContainerTaskAdapter(
-          client,
-          kubernetesTaskRunnerConfig,
-          taskConfig,
-          startupLoggingConfig,
-          druidNode,
-          smileMapper
-      );
-    }
-
     runner = new KubernetesTaskRunner(
-        adapter,
+        buildTaskAdapter(client),
         kubernetesTaskRunnerConfig,
         taskQueueConfig,
         taskLogPusher,
@@ -119,5 +106,43 @@ public class KubernetesTaskRunnerFactory implements TaskRunnerFactory<Kubernetes
   public KubernetesTaskRunner get()
   {
     return runner;
+  }
+
+  private TaskAdapter buildTaskAdapter(DruidKubernetesClient client)
+  {
+    String adapter = properties.getProperty(String.format(
+        Locale.ROOT,
+        "%s.%s.adapter.type",
+        IndexingServiceModuleHelper.INDEXER_RUNNER_PROPERTY_PREFIX,
+        TYPE_NAME
+    ));
+    if (MultiContainerTaskAdapter.TYPE.equals(adapter) || kubernetesTaskRunnerConfig.sidecarSupport) {
+      return new MultiContainerTaskAdapter(
+          client,
+          kubernetesTaskRunnerConfig,
+          taskConfig,
+          startupLoggingConfig,
+          druidNode,
+          smileMapper
+      );
+    } else if (PodTemplateTaskAdapter.TYPE.equals(adapter)) {
+      return new PodTemplateTaskAdapter(
+          client,
+          kubernetesTaskRunnerConfig,
+          taskConfig,
+          druidNode,
+          smileMapper,
+          properties
+      );
+    } else {
+      return new SingleContainerTaskAdapter(
+          client,
+          kubernetesTaskRunnerConfig,
+          taskConfig,
+          startupLoggingConfig,
+          druidNode,
+          smileMapper
+      );
+    }
   }
 }
